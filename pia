@@ -66,7 +66,7 @@ ffirewall()			# Set up ufw firewall rules
 	ufw allow out on tun0 &>/dev/null
 	ufw allow in on tun0 &>/dev/null
 	ufw allow out 1194/udp &>/dev/null
-	ufw allow to $LOCALNET &>/dev/null
+	ufw allow out to $LOCALNET &>/dev/null
 	ufw allow in from $LOCALNET &>/dev/null
 	while read IP;do ufw allow in from "$IP" to any &>/dev/null;done < <(echo "$SERVERIPS")
 	ufw default deny outgoing &>/dev/null
