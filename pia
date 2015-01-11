@@ -96,7 +96,7 @@ do
 	esac
 done
 
-if [ $(id -u) == 0 ];then echo " [X] Script must be run as root/sudo." && exit;fi
+if [ $(id -u) != 0 ];then echo " [X] Script must be run as root/sudo." && exit;fi
 
 clear
 echo ' [*] Please choose a server: '
