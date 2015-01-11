@@ -87,7 +87,15 @@ cp /etc/resolv.conf /etc/resolv.conf.bak
 cp /etc/resolv.conf.pia /etc/resolv.conf
 echo ' [*] Staring bind9 recursive DNS server.'
 service bind9 start &>/dev/null
-echo ' [*] Setting up ufw firewall rules.'
+
+echo ' [*] Connecting to VPN..'
+OVPNFILE=$(cd $VPNPATH && grep $SERVER * | grep -v servers | cut -d ':' -f 1)
+cd $VPNPATH && openvpn $OVPNFILE &> /dev/null&
+
+
+while [ $CURRIP == $NEWIP ];do sleep 1.5 && NEWIP=$(curl -s icanhazip.com);done
+echo ' [*] Connected.'
+
 echo -e 'ufw reset\ny\n' | bash &>/dev/null
 ufw allow in OpenSSH &>/dev/null
 ufw allow out OpenSSH &> /dev/null
@@ -101,12 +109,8 @@ ufw default deny outgoing &>/dev/null
 ufw default deny incoming &>/dev/null
 echo " [*] $(ufw enable)"
 
-OVPNFILE=$(cd $VPNPATH && grep $SERVER * | grep -v servers | cut -d ':' -f 1)
-echo -e " [*] Current IP:\t$CURRIP"
-cd $VPNPATH && openvpn $OVPNFILE &> /dev/null&
-sleep 6
-while [ $CURRIP == $NEWIP ];do sleep 2 && NEWIP=$(curl -s icanhazip.com);done
-echo -e " [*] New IP:\t\t$NEWIP"
+echo -e " [*] Old IP:\t\t$CURRIP"
+echo -e " [*] Current IP:\t$NEWIP"
 
 if [ "$PORTFORWARD" == "1" ];then
 	if [ "$SERVERNUM" == "2" ] || [ "$SERVERNUM" == "3" ] || [ "$SERVERNUM" == "4" ] || [ "$SERVERNUM" == "5" ] || [ "$SERVERNUM" == "9" ] || [ "$SERVERNUM" == "10" ] || [ "$SERVERNUM" == "11" ] || [ "$SERVERNUM" == "12" ];then
