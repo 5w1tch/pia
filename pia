@@ -1,0 +1,127 @@
+#/bin/bash
+
+fsetup()
+{
+	command -v ufw &>/dev/null || (echo " [X] ufw not installed, installing.." && apt-get install ufw && echo)
+	command -v openvpn &>/dev/null || (echo " [X] openvpn not installed, installing.." && apt-get install openvpn && echo)
+	service bind9 start &>/dev/null || (echo " [X] bind9 not installed, installing.." && apt-get install bind9 && service bind9 start &>/dev/null && echo)
+	mkdir -p $VPNPATH
+	fupdate
+	read -p ' [*] Enter the VPN username: ' USERN
+	read -sp ' [*] Enter the VPN password: ' PASSWD
+	echo
+	echo -e $USERN'\n'$PASSWD > $VPNPATH/passwd
+	head -n 100 /dev/urandom | md5sum | tr -d " -" > $VPNPATH/client_id
+	echo """nameserver 127.0.0.1
+nameserver 209.222.18.222
+nameserver 209.222.18.218
+nameserver 213.73.91.35
+""" > /etc/resolv.conf.pia
+	unset USERN PASSWD
+}
+
+fupdate()
+{
+	echo ' [*] Updating PIA openvpn files.'
+	rm -rf $VPNPATH/*.ovpn
+	rm -rf $VPNPATH/*.crt
+	rm -rf $VPNPATH/*.pem
+	rm -rf $VPNPATH/servers
+	wget -q https://www.privateinternetaccess.com/openvpn/openvpn.zip -O $VPNPATH/pia.zip
+	(cd $VPNPATH && unzip -q pia.zip)
+	rm $VPNPATH/pia.zip
+	(cd $VPNPATH && for file in *.ovpn;do mv "$file" `echo $file | tr ' ' '_'` &>/dev/null;done)
+	for file in $VPNPATH/*.ovpn;do sed -i 's/auth-user-pass/auth-user-pass passwd/' $file;done
+	for file in $VPNPATH/*.ovpn;do cat $file | grep '.com' | cut -d ' ' -f 2 >> $VPNPATH/servers;done
+	echo ' [*] Updated.'
+}
+
+fportforward()
+{
+	USERN=$(cat $VPNPATH/passwd | head -n 1)
+	PASSWD=$(cat $VPNPATH/passwd | tail -n 1)
+	CLIENTID=$(cat $VPNPATH/client_id)
+	LOCALIP=$(ip addr show tun0 | grep inet | awk '{ print $2 }')
+	echo $(wget -q -O- --post-data "user=$USERN&pass=$PASSWD&client_id=$CLIENTID&local_ip=$LOCALIP" https://www.privateinternetaccess.com/vpninfo/port_forward_assignment | grep -oE "[0-9]+") > $VPNPATH/open_port
+	ufw allow in $(cat $VPNPATH/open_port) &> /dev/null
+	ufw allow out $(cat $VPNPATH/open_port) &> /dev/null
+	unset USERN PASSWD CLIENTID LOCALIP
+}
+
+fhelp()
+{
+	echo """Usage: ./pia [Options]
+	-u	- Update PIA openvpn files.
+	-p	- Forward a port.
+	-h	- This help."""
+	exit
+}
+
+VPNPATH='/etc/pia'
+if [ ! -d $VPNPATH ];then fsetup;fi
+
+PORTFORWARD="0"
+while getopts ":u:p" opt
+do
+ 	case $opt in
+		u) fupdate;;
+		p) PORTFORWARD="1";;
+		h) fhelp;;
+		*) fhelp;;
+	esac
+done
+
+if [ $(whoami) != 'root' ];then exec sudo -- "$0" "$@";fi
+
+clear
+echo ' [*] Please choose a country: '
+for i in {1..21};do echo -n " [$i] " && cat $VPNPATH/servers | head -n $i | tail -n 1 | cut -d '.' -f 1;done
+read -p ' >' SERVERNUM
+SERVER=$(cat $VPNPATH/servers | head -n $SERVERNUM | tail -n 1)
+SERVERIPS="$(nslookup $SERVER | grep Add | grep -v '#' | cut -d ' ' -f 2)"
+LOCALNET="$(ifconfig | grep -A 2 Eth | grep 'inet a' | cut -d ':' -f 2 | cut -d '.' -f -3).0/24"
+NEWIP=$(curl -s icanhazip.com)
+CURRIP=$NEWIP
+clear
+echo ' [*] Changing DNS to PIA.'
+cp /etc/resolv.conf /etc/resolv.conf.bak
+cp /etc/resolv.conf.pia /etc/resolv.conf
+echo ' [*] Staring bind9 recursive DNS server.'
+service bind9 start &>/dev/null
+echo ' [*] Setting up ufw firewall rules.'
+echo -e 'ufw reset\ny\n' | bash &>/dev/null
+ufw allow in OpenSSH &>/dev/null
+ufw allow out OpenSSH &> /dev/null
+ufw allow out on tun0 &>/dev/null
+ufw allow in on tun0 &>/dev/null
+ufw allow out 1194/udp &>/dev/null
+ufw allow to $LOCALNET &>/dev/null
+ufw allow in from $LOCALNET &>/dev/null
+while read IP;do ufw allow in from "$IP" to any &>/dev/null;done < <(echo "$SERVERIPS")
+ufw default deny outgoing &>/dev/null
+ufw default deny incoming &>/dev/null
+echo " [*] $(ufw enable)"
+
+OVPNFILE=$(cd $VPNPATH && grep $SERVER * | grep -v servers | cut -d ':' -f 1)
+echo -e " [*] Current IP:\t$CURRIP"
+cd $VPNPATH && openvpn $OVPNFILE &> /dev/null&
+sleep 4
+while [ $CURRIP == $NEWIP ];do sleep 2 && NEWIP=$(curl -s icanhazip.com);done
+echo -e " [*] New IP:\t\t$NEWIP"
+
+if [ "$PORTFORWARD" == "1" ];then 
+	fportforward
+	echo " [*] Port $(cat $VPNPATH/open_port) has been forwarded to you."
+fi
+
+echo "IyEvYmluL2Jhc2gK" | base64 -d > /usr/bin/resetvpn
+echo """killall openvpn &>/dev/null
+echo -e 'ufw reset\ny\n' | bash &>/dev/null
+cp /etc/resolv.conf.bak /etc/resolv.conf
+rm -rf $VPNPATH/open_port
+echo ' [*] Disconnected from VPN, reset firewall rules and restored DNS.'
+echo -n ' [*] Current IP:        '
+curl -s icanhazip.com""" >> /usr/bin/resetvpn
+chmod +x /usr/bin/resetvpn
+
+echo -e " [*] VPN setup complete.\n [*] Run: resetvpn to stop using it and reset firewall rules and DNS.\n"
