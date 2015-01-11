@@ -137,4 +137,4 @@ if [ "$PORTFORWARD" == "1" ];then
  	fi
 fi
 
-echo -e " [*] VPN setup complete.\n [*] Run: resetvpn to stop using it and reset firewall rules and DNS.\n"
+echo -e " [*] VPN setup complete.\n [*] Run: vpnreset to stop using it and reset firewall rules and DNS.\n"
