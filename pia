@@ -50,10 +50,9 @@ fportforward()
 
 fhelp()
 {
-	echo """Usage: ./pia [Options]
+	echo """Usage: ./pia.sh [Options]
 	-u	- Update PIA openvpn files.
-	-p	- Forward a port.
-	-h	- This help."""
+	-p	- Forward a port."""
 	exit
 }
 
@@ -105,13 +104,17 @@ echo " [*] $(ufw enable)"
 OVPNFILE=$(cd $VPNPATH && grep $SERVER * | grep -v servers | cut -d ':' -f 1)
 echo -e " [*] Current IP:\t$CURRIP"
 cd $VPNPATH && openvpn $OVPNFILE &> /dev/null&
-sleep 4
+sleep 6
 while [ $CURRIP == $NEWIP ];do sleep 2 && NEWIP=$(curl -s icanhazip.com);done
 echo -e " [*] New IP:\t\t$NEWIP"
 
-if [ "$PORTFORWARD" == "1" ];then 
-	fportforward
-	echo " [*] Port $(cat $VPNPATH/open_port) has been forwarded to you."
+if [ "$PORTFORWARD" == "1" ];then
+	if [ "$SERVERNUM" == "2" ] || [ "$SERVERNUM" == "3" ] || [ "$SERVERNUM" == "4" ] || [ "$SERVERNUM" == "5" ] || [ "$SERVERNUM" == "9" ] || [ "$SERVERNUM" == "10" ] || [ "$SERVERNUM" == "11" ] || [ "$SERVERNUM" == "12" ];then
+		fportforward
+		echo " [*] Port $(cat $VPNPATH/open_port) has been forwarded to you."
+	else
+		echo -e " [X] Port forwarding is only available at:\n - Netherlands\n - Switzerland\n - CA North York\n - CA Toronto\n - Romania\n - Sweden\n - France\n - Germany"
+ 	fi
 fi
 
 echo "IyEvYmluL2Jhc2gK" | base64 -d > /usr/bin/resetvpn
