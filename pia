@@ -2,9 +2,10 @@
 
 fsetup()					# Function only runs once on initial run of the script
 {
-	command -v ufw &>/dev/null || (echo " [X] ufw not installed, installing.." && apt-get install ufw && echo)
-	command -v openvpn &>/dev/null || (echo " [X] openvpn not installed, installing.." && apt-get install openvpn && echo)
-	service bind9 start &>/dev/null || (echo " [X] bind9 not installed, installing.." && apt-get install bind9 && service bind9 start &>/dev/null && echo)
+	command -v ufw &>/dev/null || (echo " [X] ufw not installed, installing.." && apt-get install -y ufw && echo)
+	command -v openvpn &>/dev/null || (echo " [X] openvpn not installed, installing.." && apt-get install -y openvpn && echo)
+	command -v curl &>/dev/null || (echo " [X] curl not installed, installing.." && apt-get install -y curl && echo)
+	service bind9 start &>/dev/null || (echo " [X] bind9 not installed, installing.." && apt-get install -y bind9 && service bind9 start &>/dev/null && echo)
 	mkdir -p $VPNPATH
 	fupdate
 	read -p ' [*] Enter the VPN username: ' USERN
@@ -131,9 +132,14 @@ echo -e " [*] Current IP:\t$NEWIP"
 if [ "$PORTFORWARD" == "1" ];then
 	if [ "$SERVERNUM" == "2" ] || [ "$SERVERNUM" == "3" ] || [ "$SERVERNUM" == "4" ] || [ "$SERVERNUM" == "5" ] || [ "$SERVERNUM" == "9" ] || [ "$SERVERNUM" == "10" ] || [ "$SERVERNUM" == "11" ] || [ "$SERVERNUM" == "12" ];then
 		fportforward
-		echo " [*] Port $(cat $VPNPATH/open_port) has been forwarded to you."
+		FORW=$(cat $VPNPATH/open_port)
+		if [ $FORW -gt 0 ];then
+			echo " [*] Port $(cat $VPNPATH/open_port) has been forwarded to you."
+		else
+			echo " [X] Error during port forwarding, perhaps your vpn password contains special characters?"
+		fi
 	else
-		echo -e " [X] Port forwarding is only available at:\n - Netherlands\n - Switzerland\n - CA North York\n - CA Toronto\n - Romania\n - Sweden\n - France\n - Germany"
+		echo -e " [X] Port forwarding is only available at: Netherlands, Switzerland, CA North York, CA Toronto, Romania, Sweden, France and Germany."
  	fi
 fi
 
